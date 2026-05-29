@@ -64,9 +64,28 @@ var map =
 L.map('map')
 .setView([-23.76,-53.31],12);
 
+var dadosHistoricos = [];
+
 L.tileLayer(
 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
 ).addTo(map);
+
+fetch(
+'https://script.google.com/macros/s/AKfycbyxSiXHCc27JvgN3jUVo4H4nT7yvVDx58S_nyjoQytV7Q9z_GNA90RUdu5e2v0-1pIi/exec'
+)
+
+.then(response => response.json())
+
+.then(data => {
+
+dadosHistoricos = data;
+
+console.log(
+'Dados históricos:',
+dadosHistoricos.length
+);
+
+});
 
 fetch('limites_setores_lookerstudio.geojson')
 
