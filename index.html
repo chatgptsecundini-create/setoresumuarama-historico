@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<meta charset="utf-8"/>
+
+<title>WebGIS Epidemiológico</title>
+
+<link rel="stylesheet"
+href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<style>
+
+/*
+POPUP MOBILE MELHORADO
+*/
+
+.popupCustom .leaflet-popup-content-wrapper{
+
+border-radius:18px;
+
+padding:14px;
+
+background:white;
+
+box-shadow:0 0 18px rgba(0,0,0,0.35);
+
+}
+
+.popupCustom .leaflet-popup-content{
+
+margin:14px;
+
+font-size:20px;
+
+line-height:1.8;
+
+font-family:Arial,sans-serif;
+
+min-width:220px;
+
+}
+
+.popupMobile h3{
+
+margin:0 0 12px 0;
+
+font-size:24px;
+
+color:#c62828;
+
+font-weight:bold;
+
+}
+
+/*
+TELAS PEQUENAS
+*/
+
+@media (max-width: 600px){
+
+.popupCustom .leaflet-popup-content{
+
+font-size:22px;
+
+line-height:1.9;
+
+min-width:260px;
+
+}
+
+.popupMobile h3{
+
+font-size:26px;
+
+}
+
+}
+  
+#painelFiltros{
+
+position:absolute;
+
+top:10px;
+
+left:50px;
+
+z-index:1000;
+
+background:white;
+
+padding:14px;
+
+border-radius:14px;
+
+box-shadow:0 0 14px rgba(0,0,0,0.35);
+
+}
+
+#painelFiltros select{
+
+margin:6px;
+
+padding:10px;
+
+font-size:18px;
+
+border-radius:8px;
+
+min-width:180px;
+
+}
+
+html, body, #map{
+height:100%;
+margin:0;
+padding:0;
+}
+
+/*
+RÓTULO ARMADILHA
+*/
+
+.labelArmadilha div{
+
+background:transparent;
+
+border:none;
+
+box-shadow:none;
+
+padding:0;
+
+font-size:10px;
+
+font-weight:bold;
+
+text-align:center;
+
+color:black;
+
+white-space:nowrap;
+
+pointer-events:none;
+
+text-shadow:
+1px 1px 2px white,
+-1px -1px 2px white,
+1px -1px 2px white,
+-1px 1px 2px white;
+
+}
+
+/*
+PAINEL INDICADORES
+*/
+
+#painelIndices{
+
+position:absolute;
+
+top:160px;
+
+left:50px;
+
+z-index:1000;
+
+background:white;
+
+padding:14px;
+
+border-radius:14px;
+
+box-shadow:0 0 14px rgba(0,0,0,0.35);
+
+font-family:Arial,sans-serif;
+
+font-size:16px;
+
+line-height:1.7;
+
+min-width:180px;
+
+}
+
+#painelIndices h3{
+
+margin-top:0;
+
+margin-bottom:10px;
+
+color:#c62828;
+
+}
+  
+/*
+MOBILE
+*/
+
+@media (max-width: 600px){
+
+#painelFiltros{
+
+left:10px;
+
+top:10px;
+
+padding:10px;
+
+}
+
+#painelFiltros select{
+
+width:220px;
+
+font-size:20px;
+
+padding:12px;
+
+margin-bottom:10px;
+
+}
+
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div id="painelFiltros">
+
+<select id="filtroSemana">
+<option value="todos">Todas Semanas</option>
+</select>
+
+<select id="filtroArmadilha">
+<option value="todos">Todas Armadilhas</option>
+</select>
+
+</div>
+
+<div id="painelIndices">
+
+<h3>Indicadores</h3>
+
+<div id="indiceIPO">IPO: --</div>
+
+<div id="indiceIDO">IDO: --</div>
+
+<div id="indiceIMO">IMO: --</div>
+
+<hr>
+
+<div id="totalOvos">Ovos: --</div>
+
+<div id="positivas">Positivas: --</div>
+
+<div id="examinadas">Examinadas: --</div>
+
+</div>
+
+<div id="map"></div>
+
+<script>
+
+var map = L.map('map').setView([-23.76,-53.31],12);
+
+L.tileLayer(
+'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+{
+maxZoom:19
+}
+).addTo(map);
+
+fetch('limites_setores_lookerstudio.geojson')
+.then(response => response.json())
+.then(data => {
+
+L.geoJSON(data,{
+
+style:function(feature){
+
+return{
+color:'red',
+weight:2,
+fillColor:'orange',
+fillOpacity:0.4
+};
+
+}
+
+}).addTo(map);
+
+});
+
+var camadaPontos;
+
+fetch('https://script.google.com/macros/s/AKfycbxT541suXiFwiGT2gkNTNe4E3MkigLeQJVzARb51wzuiTo9mwJ8_OCCJ6f7JjOaMKi7/exec')
+
+.then(response => response.json())
+
+.then(data => {
+
+window.dadosOriginais = data;
+
+popularFiltros(data);
+
+desenharPontos(data);
+
+});
+
+/*
+========================================
+POPULAR FILTROS
+========================================
+*/
+
+function popularFiltros(data){
+
+var semanas = new Set();
+
+var armadilhas = new Set();
+
+data.forEach(function(item){
+
+semanas.add(item.semana);
+
+armadilhas.add(item.armadilha);
+
+});
+
+var filtroSemana =
+document.getElementById('filtroSemana');
+
+var filtroArmadilha =
+document.getElementById('filtroArmadilha');
+
+[...semanas]
+
+.filter(sem => sem && sem != 'undefined')
+
+.sort((a,b) => Number(a) - Number(b))
+
+.forEach(function(sem){
+
+var op =
+document.createElement('option');
+
+op.value = sem;
+
+op.text = sem;
+
+filtroSemana.appendChild(op);
+
+});
+
+[...armadilhas]
+
+.filter(arm => arm && arm != 'undefined')
+
+.sort((a,b) => Number(a) - Number(b))
+
+.forEach(function(arm){
+
+var op =
+document.createElement('option');
+
+op.value = arm;
+
+op.text = arm;
+
+filtroArmadilha.appendChild(op);
+
+});
+
+}
+
+/*
+========================================
+DESENHAR PONTOS
+========================================
+*/
+
+function desenharPontos(data){
+
+if(camadaPontos){
+
+map.removeLayer(camadaPontos);
+
+}
+
+camadaPontos = L.layerGroup();
+
+var acumulado = {};
+
+/*
+INDICADORES
+*/
+
+var totalOvos = 0;
+
+var positivas = 0;
+
+var examinadas = 0;
+
+/*
+AGRUPAMENTO
+*/
+
+data.forEach(function(item){
+
+var semanaSelecionada =
+document.getElementById('filtroSemana').value;
+
+var armadilhaSelecionada =
+document.getElementById('filtroArmadilha').value;
+
+/*
+FILTROS
+*/
+
+if(
+(semanaSelecionada == 'todos' ||
+item.semana == semanaSelecionada)
+&&
+(armadilhaSelecionada == 'todos' ||
+item.armadilha == armadilhaSelecionada)
+){
+
+examinadas++;
+
+if(parseFloat(item.ovos) > 0){
+
+positivas++;
+
+}
+
+totalOvos +=
+parseFloat(item.ovos);
+  
+var chave =
+item.armadilha;
+
+if(!acumulado[chave]){
+
+acumulado[chave] = {
+
+ovos:0,
+
+latitude:item.latitude,
+
+longitude:item.longitude,
+
+semana:item.semana
+
+};
+
+}
+
+acumulado[chave].ovos +=
+parseFloat(item.ovos);
+
+}
+
+});
+
+/*
+VALOR MÁXIMO DA SEMANA/FILTRO
+*/
+
+var maxOvos = 0;
+
+Object.keys(acumulado)
+.forEach(function(chave){
+
+if(acumulado[chave].ovos > maxOvos){
+
+maxOvos = acumulado[chave].ovos;
+
+}
+
+});
+  
+/*
+DESENHO
+*/
+
+Object.keys(acumulado)
+.forEach(function(chave){
+
+var item =
+acumulado[chave];
+
+var ovos =
+item.ovos;
+
+var intensidade =
+ovos / maxOvos;
+
+/*
+COR DINÂMICA
+*/
+
+var cor;
+
+var semanaSelecionada =
+document.getElementById('filtroSemana').value;
+
+/*
+CLASSIFICAÇÃO
+POR SEMANA
+*/
+
+if(semanaSelecionada != 'todos'){
+
+if(ovos <= 50){
+
+cor = 'green';
+
+}
+else if(ovos <= 100){
+
+cor = 'orange';
+
+}
+else{
+
+cor = 'red';
+
+}
+
+}
+
+/*
+ACUMULADO TOTAL
+→ ESCALA CONTÍNUA
+*/
+
+else{
+
+var vermelho =
+Math.floor(255 * intensidade);
+
+var verde =
+Math.floor(255 * (1 - intensidade));
+
+cor =
+`rgb(${vermelho},${verde},0)`;
+
+}
+  
+/*
+DETECTA MOBILE
+*/
+
+var mobile =
+window.innerWidth < 600;
+
+/*
+TAMANHO BASE
+*/
+
+var escalaBase =
+mobile ? 55 : 26;
+
+var minimo =
+mobile ? 18 : 10;
+
+/*
+RAIO FINAL
+*/
+
+var raioFinal =
+
+Math.max(
+
+(
+
+((ovos / maxOvos) * escalaBase)
+
++
+
+8
+
+)
+
+*
+
+(map.getZoom() / 12),
+
+minimo
+
+);
+
+/*
+BOLHA
+*/
+
+L.circleMarker(
+[item.latitude,item.longitude],
+
+{
+
+radius: raioFinal,
+
+fillColor: cor,
+
+fillOpacity:0.8,
+
+color:'black',
+
+weight:1
+
+}
+
+)
+
+.bindPopup(
+
+'<div class="popupMobile">' +
+
+'<h3>Armadilha ' + chave + '</h3>' +
+
+'<b>Ovos:</b> ' + ovos +
+
+'</div>',
+
+{
+
+maxWidth:340,
+
+minWidth:240,
+
+className:'popupCustom'
+
+}
+
+)
+
+.addTo(camadaPontos);
+
+/*
+RÓTULO ARMADILHA
+*/
+
+/*
+TAMANHO DO RÓTULO
+RESPONSIVO
+*/
+
+var tamanhoRotulo =
+mobile
+
+? Math.max(map.getZoom() * 1.6, 14)
+
+: Math.max(map.getZoom() * 1.1, 10);
+
+L.marker(
+[item.latitude,item.longitude],
+
+{
+
+interactive:false,
+
+keyboard:false,
+
+icon: L.divIcon({
+
+className:'labelArmadilha',
+
+html:
+
+'<div style="font-size:' +
+
+tamanhoRotulo +
+
+'px;">' +
+
+chave +
+
+'</div>',
+
+iconSize:[40,20]
+
+})
+
+}
+
+).addTo(camadaPontos);
+  
+});
+
+/*
+CÁLCULO DOS ÍNDICES
+*/
+
+var IPO =
+examinadas > 0
+
+? ((positivas / examinadas) * 100)
+.toFixed(1)
+
+: 0;
+
+var IDO =
+positivas > 0
+
+? (totalOvos / positivas)
+.toFixed(1)
+
+: 0;
+
+var IMO =
+examinadas > 0
+
+? (totalOvos / examinadas)
+.toFixed(1)
+
+: 0;
+
+/*
+ATUALIZA PAINEL
+*/
+
+document.getElementById('indiceIPO')
+.innerHTML =
+'<b>IPO:</b> ' + IPO + '%';
+
+document.getElementById('indiceIDO')
+.innerHTML =
+'<b>IDO:</b> ' + IDO;
+
+document.getElementById('indiceIMO')
+.innerHTML =
+'<b>IMO:</b> ' + IMO;
+
+document.getElementById('totalOvos')
+.innerHTML =
+'<b>Ovos:</b> ' + totalOvos;
+
+document.getElementById('positivas')
+.innerHTML =
+'<b>Positivas:</b> ' + positivas;
+
+document.getElementById('examinadas')
+.innerHTML =
+'<b>Examinadas:</b> ' + examinadas;
+
+camadaPontos.addTo(map);
+
+}
+
+/*
+========================================
+EVENTOS FILTROS
+========================================
+*/
+
+document
+.getElementById('filtroSemana')
+.addEventListener('change',function(){
+
+desenharPontos(
+window.dadosOriginais
+);
+
+});
+
+document
+.getElementById('filtroArmadilha')
+.addEventListener('change',function(){
+
+desenharPontos(
+window.dadosOriginais
+);
+
+});
+
+/*
+ATUALIZA BOLHAS
+AO DAR ZOOM
+*/
+
+map.on('zoomend',function(){
+
+desenharPontos(
+window.dadosOriginais
+);
+
+});
+  
+</script>
+
+</body>
+</html>
