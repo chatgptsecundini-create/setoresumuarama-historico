@@ -440,6 +440,9 @@ AGRUPAMENTO
 
 data.forEach(function(item){
 
+var anoSelecionado =
+document.getElementById('filtroAno').value;
+
 var semanaSelecionada =
 document.getElementById('filtroSemana').value;
 
@@ -451,6 +454,9 @@ FILTROS
 */
 
 if(
+(anoSelecionado == 'todos' ||
+item.ano == anoSelecionado)
+&&
 (semanaSelecionada == 'todos' ||
 item.semana == semanaSelecionada)
 &&
@@ -786,6 +792,16 @@ camadaPontos.addTo(map);
 EVENTOS FILTROS
 ========================================
 */
+
+document
+.getElementById('filtroAno')
+.addEventListener('change',function(){
+
+desenharPontos(
+window.dadosOriginais
+);
+
+});
 
 document
 .getElementById('filtroSemana')
